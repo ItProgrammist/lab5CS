@@ -12,7 +12,6 @@ permissions:
   actions: read
 
 jobs:
-  #SAST
   sast_analysis:
     name: Automated SAST (Semgrep Engine)
     runs-on: ubuntu-latest
@@ -26,7 +25,6 @@ jobs:
       - name: 1.3. Execute Code Scanning
         run: semgrep scan --config=.semgrep/rules.yml --text --error || true
 
-  # SCA
   sca_analysis:
     name: Automated SCA (OWASP Dependency-Check)
     runs-on: ubuntu-latest
@@ -34,27 +32,23 @@ jobs:
       - name: 2.1. Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: 2.2. Create Directory for Reports
-        run: mkdir -p ${{ github.workspace }}/reports
-
-      - name: 2.3. Run OWASP Dependency-Check Core Engine
+      - name: 2.2. Run OWASP Dependency-Check Core Engine
         uses: dependency-check/DependencyCheck_Action@main
         id: DependencyCheckCore
         with:
-          project: 'lab5CS'
-          path: '.'
-          format: 'HTML'
-          out: '${{ github.workspace }}/reports'
-          args: '--enableUnretired --prettyPrint'
+          project: "lab5CS"
+          path: "."
+          format: "HTML"
+          out: "reports"
+          args: "--prettyPrint"
 
-      - name: 2.4. Upload SCA HTML Report
+      - name: 2.3. Upload SCA HTML Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: enterprise-sca-dependency-report
-          path: ${{ github.workspace }}/reports/
+          path: reports/
 
-  #DAST
   dast_analysis:
     name: Automated DAST (OWASP ZAP Fuzzer)
     runs-on: ubuntu-latest
@@ -65,7 +59,7 @@ jobs:
       - name: 3.2. Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: 3.3. Install Dependencies
         run: pip install -r requirements.txt || true
@@ -85,8 +79,7 @@ jobs:
       - name: 3.6. OWASP ZAP Baseline Web Scan
         uses: zaproxy/action-baseline@v0.13.0
         with:
-          target: 'http://localhost:8081'
-          rules_file_name: '${{ github.workspace }}/.zap/rules.tsv'
+          target: "http://localhost:8081"
           fail_action: false
 
       - name: 3.7. Upload DAST HTML Report
