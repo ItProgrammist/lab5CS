@@ -81,10 +81,13 @@ jobs:
         with:
           target: "http://localhost:8081"
           fail_action: false
+          # ОТКЛЮЧАЕМ СОЗДАНИЕ ISSUES НА GITHUB
+          token: ""
 
       - name: 3.7. Upload DAST HTML Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: enterprise-dast-zap-report
+          # ИСПРАВЛЕНО ИМЯ ФАЙЛА (берём то, что сгенерировал ZAP согласно вашим логам)
           path: zap_out.html
