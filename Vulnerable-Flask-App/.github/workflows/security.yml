@@ -1,24 +1,116 @@
-rules:
-  - id: flask-sqli-string-format
-    languages: [python]
-    severity: ERROR
-    message: "КРИТИЧЕСКАЯ УЯЗВИМОСТЬ: Обнаружена SQL-инъекция! Строка запроса формируется небезопасным форматированием."
-    pattern: $CUR.execute(...)
+name: Production Security Engineering Pipeline
 
-  - id: python-rce-subprocess-shell
-    languages: [python]
-    severity: ERROR
-    message: "КРИТИЧЕСКАЯ УЯЗВИМОСТЬ: Удаленное выполнение кода (RCE) через subprocess с флагом shell=True."
-    pattern: subprocess.check_output(..., shell=True)
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
 
-  - id: python-path-traversal-open
-    languages: [python]
-    severity: ERROR
-    message: "УЯЗВИМОСТЬ: Потенциальный Path Traversal. Функция open() принимает внешние данные без валидации пути."
-    pattern: open($FILE, ...)
+permissions:
+  contents: read
+  security-events: write
+  actions: read
 
-  - id: python-insecure-deserialization-pickle
-    languages: [python]
-    severity: ERROR
-    message: "КРИТИЧЕСКАЯ УЯЗВИМОСТЬ: Небезопасная десериализация через pickle.loads."
-    pattern: pickle.loads(...)
+jobs:
+  # SAST
+  sast_analysis:
+    name: Automated SAST (Semgrep Engine)
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1.1. Checkout Source Code Repository
+        uses: actions/checkout@v4
+
+      - name: 1.2. Initialize Python Runtime Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: 1.3. Install Enterprise Semgrep CLI
+        run: |
+          python -m pip install --upgrade pip
+          pip install semgrep
+
+      - name: 1.4. Execute Comprehensive Code Scanning
+        run: |
+          echo "=== STARTING SEMGREP STATIC ANALYSIS ==="
+          semgrep scan --config=.semgrep/rules.yml --text --error || true
+          echo "=== SAST ANALYSIS COMPLETED ==="
+
+  # DAST
+  dast_analysis:
+    name: Automated DAST (OWASP ZAP Fuzzer)
+    runs-on: ubuntu-latest
+    steps:
+      - name: 3.1. Checkout Source Code Repository
+        uses: actions/checkout@v4
+
+      - name: 3.2. Initialize Python Runtime Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 3.3. Install Flask Application Core Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: 3.4. Mock Server Infrastructure and Environment Files
+        run: |
+          touch test.db
+          touch restapi.log
+          sudo mkdir -p /home/kali/Desktop/upload
+          sudo chmod -R 777 /home/kali/Desktop/upload
+
+      - name: 3.5. Boot Up Vulnerable Flask Application in Background
+        run: |
+          echo "=== LAUNCHING FLASK APPLICATION ==="
+          python vulnerable-flask-app-linux.py > flask_boot.log 2>&1 &
+          sleep 10
+          cat flask_boot.log
+          curl -I http://localhost:8081 || echo "Warning: Application port binding unconfirmed"
+
+      - name: 3.6. Execute OWASP ZAP Baseline Web Scan
+        uses: zaproxy/action-baseline@v0.13.0
+        with:
+          target: 'http://localhost:8081'
+          rules_file_name: '.zap/rules.tsv'
+          fail_action: false
+          cmd_options: '-d'
+
+      - name: 3.7. Persist and Upload DAST HTML Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: enterprise-dast-zap-report
+          path: zap_out.html
+          retention-days: 7
+
+  # SCA
+  sca_analysis:
+    name: Automated SCA (OWASP Dependency-Check)
+    runs-on: ubuntu-latest
+    steps:
+      - name: 2.1. Checkout Source Code Repository
+        uses: actions/checkout@v4
+
+      - name: 2.2. Create Isolated Directory for Vulnerability Reports
+        run: mkdir -p ${{ github.workspace }}/sca-compliance-reports
+
+      - name: 2.3. Run OWASP Dependency-Check Core Engine
+        uses: dependency-check/DependencyCheck_Action@main
+        id: DependencyCheckCore
+        with:
+          project: 'Vulnerable-Flask-App-Linux'
+          path: '.'
+          format: 'HTML'
+          out: '${{ github.workspace }}/sca-compliance-reports'
+          args: '--failOnCVSS 7 --enableUnretired --prettyPrint'
+
+      - name: 2.4. Persist and Upload SCA HTML Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: enterprise-sca-dependency-report
+          path: ${{ github.workspace }}/sca-compliance-reports/
+          retention-days: 7
