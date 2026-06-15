@@ -1,0 +1,9 @@
+rules:
+  - id: flask-sqli-raw-string
+    pattern: |
+      $QUERY = f"..."
+      ...
+      $CURSOR.execute($QUERY)
+    message: "Обнаружена потенциальная SQL-инъекция! Используйте параметризованные запросы."
+    languages: [python]
+    severity: ERROR
