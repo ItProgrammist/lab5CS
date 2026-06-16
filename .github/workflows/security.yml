@@ -78,7 +78,7 @@ jobs:
 
       - name: 3.6. Run OWASP ZAP via Docker Direct
         run: |
-          docker run --rm -v ${{ github.workspace }}:/zap/wrk/:rw --network=host -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:8081 -r report_html.html || true
+          docker run --rm -v "$(pwd):/zap/wrk/:rw" --network=host -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:8081 -r /zap/wrk/report_html.html || true
 
       - name: 3.7. Upload DAST HTML Report
         if: always()
